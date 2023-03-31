@@ -8,6 +8,7 @@
   <canvas id="output" width="360" height="360"></canvas>
  <br>
  <!-- USER INTERFACE -->
+ <h4>AFFINE TRANSFORMATION</h4>
  <button id="translateX">MOVE X</button>  
  <button id="translateY">MOVE Y</button>
  <button id="translate">MOVE</button>
@@ -15,8 +16,30 @@
  <br>
  X = <input type="text" id="tx" value="0">
  Y = <input type="text" id="ty" value="0">
+ <br>
  SCALE X by = <input type="text" id="Sx" value="0">
  SCALE Y by = <input type="text" id="Sy" value="0">
+<br>
+<br>
+<h4>VIEW TRANSFORMATION</h4>
+<b>Viewpoint</b>
+<br>
+X = <input type="text" id="viewpx" value="0">
+Y = <input type="text" id="viewpy" value="0">
+Z = <input type="text" id="viewpz" value="0">
+<br>
+<b>Center Point</b>
+<br>
+X = <input type="text" id="centerpx" value="0">
+Y = <input type="text" id="centerpy" value="0">
+Z = <input type="text" id="centerpz" value="0">
+<br>
+Up Vector
+<br>
+X = <input type="text" id="upvx" value="0">
+Y = <input type="text" id="upvy" value="0">
+Z = <input type="text" id="upvz" value="0">
+
   
    <script src="./utils/gl-matrix.js"></script>
   <!-- VERTEX SHADER -->
