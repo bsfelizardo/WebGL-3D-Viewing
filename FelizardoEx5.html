@@ -863,7 +863,7 @@ Z: <input type="range" id="rotatez" min="-360" max="360" step="10" value="0">
       for(let i=0; i<square2_vertices.length/4; i+=3){
           console.log("here")
           // alternating color of triangle
-          i%6==0?gl.uniform4f(colorLocation,0.0,0.0,1.0,1.0):gl.uniform4f(colorLocation,0.0,0.5,1.0,1.0);
+          i%6==0?gl.uniform4f(colorLocation,1.0,0.0,0.0,1.0):gl.uniform4f(colorLocation,1.0,0.5,0.0,1.0);
           gl.drawArrays(gl.TRIANGLES, i, 3);
         }
 
