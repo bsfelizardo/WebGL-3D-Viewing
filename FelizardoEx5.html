@@ -13,6 +13,7 @@
  <button id="translateY">MOVE Y</button>
  <button id="translate">MOVE</button>
  <button id="scale">SCALE</button>
+ <button id="rotate">ROTATE</button>
  <br>
  X = <input type="text" id="tx" value="0">
  Y = <input type="text" id="ty" value="0">
@@ -20,26 +21,42 @@
  SCALE X by = <input type="text" id="Sx" value="0">
  SCALE Y by = <input type="text" id="Sy" value="0">
 <br>
+ROTATION ANGLE = <input type="number" id="deg" value="0">
+<br>
 <br>
 <h4>VIEW TRANSFORMATION</h4>
 <b>Viewpoint</b>
 <br>
-X = <input type="text" id="viewpx" value="0">
-Y = <input type="text" id="viewpy" value="0">
-Z = <input type="text" id="viewpz" value="0">
+X: <input type="range" id="viewpx" min="-1" max="1" step="0.01" value="0.3">
+Y: <input type="range" id="viewpy" min="-1" max="1" step="0.01" value="0.3">
+Z: <input type="range" id="viewpz" min="-1" max="1" step="0.01" value="-0.5">
 <br>
 <b>Center Point</b>
 <br>
-X = <input type="text" id="centerpx" value="0">
-Y = <input type="text" id="centerpy" value="0">
-Z = <input type="text" id="centerpz" value="0">
+X: <input type="range" id="centerpx" min="-1" max="1" step="0.01" value="0">
+Y: <input type="range" id="centerpy" min="-1" max="1" step="0.01" value="0">
+Z: <input type="range" id="centerpz" min="-1" max="1" step="0.01" value="0">
 <br>
-Up Vector
+<b>Up Vector</b>
 <br>
-X = <input type="text" id="upvx" value="0">
-Y = <input type="text" id="upvy" value="0">
-Z = <input type="text" id="upvz" value="0">
-
+X: <input type="range" id="upvx" min="-1" max="1" step="0.01" value="1">
+Y: <input type="range" id="upvy" min="-1" max="1" step="0.01" value="0">
+Z: <input type="range" id="upvz" min="-1" max="1" step="0.01" value="0">
+<br>
+<br>
+<h4>MODEL TRANSFORMATION</h4>
+<b>Translate</b>
+<br>
+X: <input type="range" id="modelTx" min="-1" max="1" step="0.01" value="0">
+Y: <input type="range" id="modelTy" min="-1" max="1" step="0.01" value="0">
+Z: <input type="range" id="modelTz" min="-1" max="1" step="0.01" value="0">
+<br>
+<b>Rotation</b>
+<br>
+X: <input type="range" id="rotatex" min="-360" max="360" step="10" value="0">
+Y: <input type="range" id="rotatey" min="-360" max="360" step="10" value="0">
+Z: <input type="range" id="rotatez" min="-360" max="360" step="10" value="0">
+<br>
   
    <script src="./utils/gl-matrix.js"></script>
   <!-- VERTEX SHADER -->
@@ -47,7 +64,9 @@ Z = <input type="text" id="upvz" value="0">
     in vec4 a_position;
     in float a_point_size;
     //transformation matrix
-    uniform mat4 u_transformation_matrix;
+    uniform mat4 u_transformation_matrix_translation;
+    uniform mat4 u_transformation_matrix_scaling;
+    uniform mat4 u_transformation_matrix_rotation;
     
     //For view, model, and projection transformations
     uniform mat4 u_model_matrix;
@@ -56,7 +75,7 @@ Z = <input type="text" id="upvz" value="0">
 
     void main() {
       //Apply the transformations to the object to be rendered
-      gl_Position = u_transformation_matrix * u_view_matrix * u_model_matrix * u_projection_matrix * a_position;
+      gl_Position = u_transformation_matrix_translation * u_transformation_matrix_scaling * u_transformation_matrix_rotation * u_view_matrix * u_model_matrix * u_projection_matrix * a_position;
     }
   </script>
 
@@ -138,7 +157,9 @@ Z = <input type="text" id="upvz" value="0">
      var colorLocation = gl.getUniformLocation(program, "u_color");
      
      //Used for affine transformation
-     const uTransformationMatrixPointer = gl.getUniformLocation(program, 'u_transformation_matrix');
+     const uTransformationMatrixPointer_Translation = gl.getUniformLocation(program, 'u_transformation_matrix_translation');
+     const uTransformationMatrixPointer_Scaling = gl.getUniformLocation(program, 'u_transformation_matrix_scaling');
+     const uTransformationMatrixPointer_Rotation = gl.getUniformLocation(program, 'u_transformation_matrix_rotation');
 
      const uModelMatrixPointer = gl.getUniformLocation(program, 'u_model_matrix');
       const uViewMatrixPointer = gl.getUniformLocation(program, 'u_view_matrix');
@@ -165,7 +186,21 @@ Z = <input type="text" id="upvz" value="0">
       
       //Initializing the variables and tranformation matrix
       var tx=0, ty=0;
-      var transformationMatrix = [
+      let transformationMatrix_translation = [
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,1
+      ];
+      
+      let transformationMatrix_scaling = [
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,1
+      ];
+
+      let transformationMatrix_rotation = [
         1,0,0,0,
         0,1,0,0,
         0,0,1,0,
@@ -173,7 +208,7 @@ Z = <input type="text" id="upvz" value="0">
       ];
 
       
-// load vertex data to gpu
+      // load vertex data to gpu
       const square1Buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, square1Buffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(square1_vertices), gl.STATIC_DRAW);
@@ -185,12 +220,46 @@ Z = <input type="text" id="upvz" value="0">
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
       // setup model matrix;
+      modelTranslate = [
+        Number((document.getElementById("modelTx")).value),
+        Number((document.getElementById("modelTy")).value),
+        Number((document.getElementById("modelTz")).value),
+        0
+      ]
       const modelMatrix = glMatrix.mat4.create();
+      glMatrix.mat4.translate(modelMatrix, modelMatrix, modelTranslate);
+      glMatrix.mat4.rotateX(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(0));
+      glMatrix.mat4.rotateY(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(0));
       glMatrix.mat4.rotateZ(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(0));
+
+      viewPoint = [
+        Number((document.getElementById("viewpx")).value),
+        Number((document.getElementById("viewpy")).value),
+        Number((document.getElementById("viewpz")).value),
+        1
+      ]
+      centerPoint = [
+        Number((document.getElementById("centerpx")).value),
+        Number((document.getElementById("centerpy")).value),
+        Number((document.getElementById("centerpz")).value),
+        1
+      ]
+      upVector = [
+        Number((document.getElementById("upvx")).value),
+        Number((document.getElementById("upvy")).value),
+        Number((document.getElementById("upvz")).value),
+        0
+      ]
 
       // setup view matrix
       const viewMatrix = glMatrix.mat4.create();
-      glMatrix.mat4.lookAt(viewMatrix,[0.3,0.3,-0.5,1],[0,0,0,1],[1,0,0,0]);
+      glMatrix.mat4.lookAt(
+        viewMatrix, 
+        viewPoint,
+        centerPoint,
+        upVector
+      );
+      // glMatrix.mat4.lookAt(viewMatrix,[0.3,0.3,-0.5,1],[0,0,0,1],[1,0,0,0]);
       
 
       // setup projection matrix
@@ -201,7 +270,7 @@ Z = <input type="text" id="upvz" value="0">
       var bottom = -1;
       var top = 1;
       var near = 0;
-      var far =1;
+      var far = 1;
       glMatrix.mat4.ortho(projectionMatrix, left, right, bottom, top, near, far);
 
      
@@ -216,9 +285,11 @@ Z = <input type="text" id="upvz" value="0">
       gl.uniformMatrix4fv(uModelMatrixPointer, false, new Float32Array(modelMatrix));
       gl.uniformMatrix4fv(uViewMatrixPointer, false, new Float32Array(viewMatrix));
       gl.uniformMatrix4fv(uProjectionMatrixPointer, false, new Float32Array(projectionMatrix));
-              // set values
-        gl.uniformMatrix4fv(uTransformationMatrixPointer, false, new Float32Array(transformationMatrix));
-      
+       // set values
+       gl.uniformMatrix4fv(uTransformationMatrixPointer_Translation, false, new Float32Array(transformationMatrix_translation));
+        gl.uniformMatrix4fv(uTransformationMatrixPointer_Scaling, false, new Float32Array(transformationMatrix_scaling));
+        gl.uniformMatrix4fv(uTransformationMatrixPointer_Rotation, false, new Float32Array(transformationMatrix_rotation));
+        
         // clear the screen
         gl.clearColor(0,0,0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -240,49 +311,82 @@ Z = <input type="text" id="upvz" value="0">
 
       // initial render
       drawScene();
+      
+      //Declaration and initialization of translation,scaling,rotation factors
+      let tr_x=0, tr_y=0, Sx=1, Sy=1;
+      let degrees = 0;
 
       function redraw(code){
       	return function(){
-          //Declaration and initialization of translation,scaling,rotation factors
-      		let tr_x=0, tr_y=0, Sx=1, Sy=1;
-      	  let degrees = 0;
-      	
-        	if (code=="tx") tr_x = (document.getElementById("tx")).value; 
-      		if (code=="ty") tr_y = (document.getElementById("ty")).value;
+        	if (code=="tx") tr_x = tr_x + Number((document.getElementById("tx")).value); 
+      		if (code=="ty") tr_y = tr_y + Number((document.getElementById("ty")).value);
           if (code=="both"){
-            tr_x = (document.getElementById("tx")).value; 
-            tr_y = (document.getElementById("ty")).value;
+            tr_x = tr_x + Number((document.getElementById("tx")).value);
+            tr_y = tr_y + Number((document.getElementById("ty")).value);
           }
-          
-          if (code!="scaled"){
-            transformationMatrix = [
+          if(code=="rotate") degrees = degrees + Number((document.getElementById("deg")).value);
+          if (code=="scaled"){
+            Sx = Sx + Number((document.getElementById("Sx")).value);
+            Sy = Sy + Number((document.getElementById("Sy")).value);
+          }
+
+          transformationMatrix_translation = [
             1,0,0,0,
             0,1,0,0,
             0,0,1,0,
             tr_x,tr_y,0,1
-            ];
-          }
-          if (code=="scaled"){
-            Sx = (document.getElementById("Sx")).value;
-            Sy = (document.getElementById("Sy")).value;
+          ];
 
-            //Transformation matrix when scaling
-            transformationMatrix = [
+          //Transformation matrix when scaling
+          transformationMatrix_scaling = [
             Sx,0,0,0,
             0,Sy,0,0,
             0,0,1,0,
             0,0,0,1
-            ];
-          }
-      	
-        //For ROTATION
+          ];
+        
           let radians = Math.PI*degrees/180;
           let cosValue = Math.cos(radians);
           let sinValue = Math.sin(radians);
-      	  
-        //rendering again after reflecting the transformations
-      	drawScene();
-      }
+
+          transformationMatrix_rotation = [
+            cosValue,sinValue , 0, 0,
+            -1*sinValue, cosValue, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+          ]
+
+          if(code=="viewpx") viewPoint[0] = Number((document.getElementById("viewpx")).value)
+          if(code=="viewpy") viewPoint[1] = Number((document.getElementById("viewpy")).value)
+          if(code=="viewpz") viewPoint[2] = Number((document.getElementById("viewpz")).value)
+
+          if(code=="centerpx") centerPoint[0] = Number((document.getElementById("centerpx")).value)
+          if(code=="centerpy") centerPoint[1] = Number((document.getElementById("centerpy")).value)
+          if(code=="centerpz") centerPoint[2] = Number((document.getElementById("centerpz")).value)
+
+          if(code=="upvx") upVector[0] = Number((document.getElementById("upvx")).value)
+          if(code=="upvy") upVector[1] = Number((document.getElementById("upvy")).value)
+          if(code=="upvz") upVector[2] = Number((document.getElementById("upvz")).value)
+
+          if(code=="modelTx") modelTranslate[0] = Number((document.getElementById("modelTx")).value)
+          if(code=="modelTy") modelTranslate[1] = Number((document.getElementById("modelTy")).value)
+          if(code=="modelTz") modelTranslate[2] = Number((document.getElementById("modelTz")).value)
+
+          if(code=="rotatex") glMatrix.mat4.rotateX(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(Number((document.getElementById("rotatex")).value))) 
+          if(code=="rotatey") glMatrix.mat4.rotateY(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(Number((document.getElementById("rotatey")).value)))
+          if(code=="rotatez") glMatrix.mat4.rotateZ(modelMatrix, modelMatrix, glMatrix.glMatrix.toRadian(Number((document.getElementById("rotatez")).value)))
+          
+
+          glMatrix.mat4.translate(modelMatrix, modelMatrix, modelTranslate);
+          glMatrix.mat4.lookAt(
+            viewMatrix, 
+            viewPoint,
+            centerPoint,
+            upVector
+          );
+          //rendering again after reflecting the transformations
+          drawScene();
+        }
       }
 
       //Event listeners for user inputs for the transformations
@@ -290,6 +394,27 @@ Z = <input type="text" id="upvz" value="0">
      document.getElementById("translateY").addEventListener("click", redraw("ty"));
      document.getElementById("translate").addEventListener("click", redraw("both"));
      document.getElementById("scale").addEventListener("click",redraw("scaled"));
+     document.getElementById("rotate").addEventListener("click",redraw("rotate"));
+
+     document.getElementById("viewpx").addEventListener("input",redraw("viewpx"));
+     document.getElementById("viewpy").addEventListener("input",redraw("viewpy"));
+     document.getElementById("viewpz").addEventListener("input",redraw("viewpz"));
+
+     document.getElementById("centerpx").addEventListener("input",redraw("centerpx"));
+     document.getElementById("centerpy").addEventListener("input",redraw("centerpy"));
+     document.getElementById("centerpz").addEventListener("input",redraw("centerpz"));
+
+     document.getElementById("upvx").addEventListener("input",redraw("upvx"));
+     document.getElementById("upvy").addEventListener("input",redraw("upvy"));
+     document.getElementById("upvz").addEventListener("input",redraw("upvz"));
+
+     document.getElementById("modelTx").addEventListener("input",redraw("modelTx"));
+     document.getElementById("modelTy").addEventListener("input",redraw("modelTy"));
+     document.getElementById("modelTz").addEventListener("input",redraw("modelTz"));
+
+     document.getElementById("rotatex").addEventListener("input",redraw("rotatex"));
+     document.getElementById("rotatey").addEventListener("input",redraw("rotatey"));
+     document.getElementById("rotatez").addEventListener("input",redraw("rotatez"));
 }
     // call the main program
     main();
